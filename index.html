@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title></title>
+        <style media="screen">
+            body {
+                padding: 0;
+                margin: 0;
+                overflow: hidden;
+            }
+            #map-container: {
+                min-height: 700px;
+            }
+            .road {
+                stroke: black;
+            }
+        </style>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" media="screen" >
+    </head>
+    <body class='container'>
+
+        <div class='row'>
+            <div class='col-sm-12' id='map-container'></div>
+        </div>
+
+        <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+
+        <script src="vec.js" charset="utf-8"></script>
+        <script src="layoutGenerator.js" charset="utf-8"></script>
+        <script src="index.js" charset="utf-8"></script>
+    </body>
+</html>

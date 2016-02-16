@@ -1,5 +1,5 @@
 (function() {
-    var nodeGoal = 10000;
+    var nodeGoal = 3000;
     var iterCount = 10000;
 
     var w = window.innerWidth;

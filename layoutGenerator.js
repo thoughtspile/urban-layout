@@ -21,6 +21,7 @@
         this.isActive = true;
     }
 
+
     function mapEdge(node1, node2) {
         if (!(this instanceof mapEdge))
             return new mapEdge(node1, node2);
@@ -56,7 +57,8 @@
             streets: {
                 nodes: [start],
                 edges: []
-            }
+            },
+            spread: .3
         };
     };
 
@@ -69,25 +71,34 @@
             var pivotI = randi(node.pivots.length);
             var pivotVal = node.pivots.splice(pivotI, 1)[0];
 
-            var dir = pivotVal + prng(0, .3 * Math.PI);
+            var dir = pivotVal + prng(-this.state.spread, this.state.spread);
             var len = prng(0, 1);
 
             var newNode = mapNode(
                 node.pos[0] + Math.sin(dir) * len,
                 node.pos[1] + Math.cos(dir) * len);
             newNode.valence = 1;
-            newNode.pivots.push(dir, dir + .5 * Math.PI, dir - .5 * Math.PI);
 
             var newEdge = mapEdge(node, newNode);
+            var conflictEdge = null;
             this.state.streets.edges.forEach(function(edge) {
                 var newPos = newEdge.intersects(edge);
                 if (newPos) {
                     newNode.pos[0] = newPos[0];
                     newNode.pos[1] = newPos[1];
+                    conflictEdge = edge;
                 }
             });
-            if (isNaN(newNode.pos[0]))
-                sdg();
+
+            if (conflictEdge) {
+                var temp = conflictEdge.to;
+                conflictEdge.to = newNode;
+                this.state.streets.edges.push(mapEdge(newNode, temp))
+                newNode.valence += 2;
+                newNode.pivots.push(dir);
+            } else {
+                newNode.pivots.push(dir, dir + .5 * Math.PI, dir - .5 * Math.PI);
+            }
 
             node.valence += 1;
             if (node.valence > 3)
@@ -99,6 +110,7 @@
 
         return this;
     };
+
 
     window.layoutGenerator = layoutGenerator;
 }());

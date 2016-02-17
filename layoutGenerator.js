@@ -17,6 +17,7 @@
             return new mapNode(x, y);
         this.pos = [x, y];
         this.pivots = [];
+        this.halfEdges = [];
         this.isActive = true;
     }
 
@@ -68,7 +69,7 @@
         return mapEdge(node, temp).recomputeVec();
     };
 
-    mapEdge.prototype.adapt = function(edges, dir) {
+    mapEdge.prototype.adapt = function(edges, dir, edgePush) {
         var newNode = this.to;
 
         var conflictEdge = null;
@@ -84,7 +85,7 @@
 
         if (conflictEdge) {
             if (!this.snapToEdge(conflictEdge)) {
-                edges.push(conflictEdge.crop(newNode));
+                edgePush(conflictEdge.crop(newNode));
                 newNode.pivots.push(dir);
             }
         } else {
@@ -112,6 +113,12 @@
         return this;
     };
 
+    mapEdge.prototype.getDir = function() {
+        var temp = (this.selfVec[1] > 0? 1: -1) * Math.acos(this.selfVec[0] / norm(this.selfVec));
+        // FIXME edge should not be 0
+        return isNaN(temp)? 0: temp;
+    };
+
     mapEdge.prototype.eq = function(edge) {
         return edge.from === this.from && edge.to === this.to;
     };
@@ -127,8 +134,63 @@
                 nodes: [start],
                 edges: []
             },
+            districts: [],
             spread: .3
         };
+    };
+
+    layoutGenerator.prototype.addEdge = function(edge) {
+        this.state.streets.edges.push(edge);
+        var dir = edge.getDir();
+
+        edge.from.halfEdges.push({
+            target: edge.to,
+            dir: dir
+        });
+        edge.to.halfEdges.push({
+            target: edge.from,
+            dir: -dir
+        });
+
+        return this;
+    }
+
+    layoutGenerator.prototype.cycleFrom = function(edge) {
+        var node = edge.to;
+        var dir = edge.getDir();
+        var depth = 0;
+        var path = [node];
+        while (depth < 100) {
+            if (node.halfEdges.length == 0)
+                return false;
+
+            var halfEdge = node.halfEdges.reduce(function(best, halfEdge) {
+                var rot = halfEdge.dir - dir;
+                if (rot < 0) rot += Math.PI * 2;
+                if (rot < best.score) {
+                    best.halfEdge = halfEdge;
+                    best.score = rot;
+                }
+                return best;
+            }, { score: Infinity}).halfEdge;
+
+            node = halfEdge.target;
+            dir = halfEdge.dir;
+
+            path.push(node);
+            if (node === edge.to) {
+                if (path.length > 2) {
+                    // console.log('success', path);
+                    this.state.districts.push(path);
+                    // TODO remove half-edges
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            depth++;
+        }
+        return false;
     };
 
     layoutGenerator.prototype.generate = function(t) {
@@ -141,25 +203,31 @@
             var newEdge = mapEdge(node, mapNode(0, 0))
                 .offset(dir, len);
 
-            if (!newEdge.adapt(this.state.streets.edges, dir)) {
-                var extendCrop = newEdge.offset(dir, 1.5 * len)
-                    .adapt(this.state.streets.edges, dir);
-                if (!extendCrop)
+            var cropDown = newEdge.adapt(this.state.streets.edges, dir, this.addEdge.bind(this));
+            var cropUp = false;
+            if (!cropDown) {
+                cropUp = newEdge.offset(dir, 1.5 * len)
+                    .adapt(this.state.streets.edges, dir, this.addEdge.bind(this));
+                if (!cropUp)
                     newEdge.offset(dir, len);
             }
 
-            if (!this.state.streets.edges.some(newEdge.eq, newEdge)) {
-                this.state.streets.edges.push(newEdge);
+            if (cropDown || cropUp) {
+                this.cycleFrom(newEdge);
+            }
 
+            if (!this.state.streets.edges.some(newEdge.eq, newEdge)) {
                 var resNode = newEdge.to;
                 if (this.state.streets.nodes.indexOf(resNode) === -1)
                     this.state.streets.nodes.push(resNode);
+
+                this.addEdge(newEdge);
             }
         }, this);
 
         return this;
     };
 
-
+    window.randi = randi;
     window.layoutGenerator = layoutGenerator;
 }());

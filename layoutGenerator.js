@@ -105,11 +105,9 @@
     };
 
     layoutGenerator.prototype.generate = function(t) {
-        var active = this.state.streets.nodes.filter(function(node) {
+        this.state.streets.nodes.filter(function(node) {
             return node.isActive;
-        });
-
-        active.forEach(function(node, i, a) {
+        }).forEach(function(node, i, a) {
             var dir = node.pivot() + prng(-this.state.spread, this.state.spread);
             var len = prng(0, 1);
 
@@ -136,8 +134,9 @@
             node.valence += 1;
             if (node.valence > 3)
                 node.isActive = false;
-
-            this.state.streets.nodes.push(newNode);
+            if (!snapped) {
+                this.state.streets.nodes.push(newNode);
+            }
             this.state.streets.edges.push(newEdge);
         }, this);
 

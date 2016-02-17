@@ -21,6 +21,11 @@
         this.isActive = true;
     }
 
+    mapNode.prototype.pivot = function () {
+        var pivotI = randi(this.pivots.length);
+        return this.pivots.splice(pivotI, 1)[0];
+    };
+
 
     function mapEdge(node1, node2) {
         if (!(this instanceof mapEdge))
@@ -47,6 +52,43 @@
         return sum(p, scalar(t, r));
     }
 
+    mapEdge.prototype.adapt = function(edges, dir) {
+        var newNode = this.to;
+
+        var conflictEdge = null;
+        edges.forEach(function(edge) {
+            var newPos = this.intersects(edge);
+            if (newPos) {
+                newNode.pos[0] = newPos[0];
+                newNode.pos[1] = newPos[1];
+                conflictEdge = edge;
+            }
+        }, this);
+
+        if (conflictEdge) {
+            var temp = conflictEdge.to;
+            conflictEdge.to = newNode;
+            edges.push(mapEdge(newNode, temp));
+            newNode.valence += 2;
+            newNode.pivots.push(dir);
+        } else {
+            newNode.pivots.push(dir, dir + .5 * Math.PI, dir - .5 * Math.PI);
+        }
+
+        return conflictEdge !== null;
+    }
+
+    mapEdge.prototype.snap = function (nodes) {
+        return nodes.some(function(node) {
+            if (dist(this.to.pos, node.pos) < .2) {
+                this.to = node;
+                node.valence++;
+                return true;
+            }
+            return false;
+        }, this);
+    };
+
 
     function layoutGenerator() {
         if (!(this instanceof layoutGenerator))
@@ -68,36 +110,27 @@
         });
 
         active.forEach(function(node, i, a) {
-            var pivotI = randi(node.pivots.length);
-            var pivotVal = node.pivots.splice(pivotI, 1)[0];
-
-            var dir = pivotVal + prng(-this.state.spread, this.state.spread);
+            var dir = node.pivot() + prng(-this.state.spread, this.state.spread);
             var len = prng(0, 1);
 
             var newNode = mapNode(
                 node.pos[0] + Math.sin(dir) * len,
                 node.pos[1] + Math.cos(dir) * len);
             newNode.valence = 1;
-
             var newEdge = mapEdge(node, newNode);
-            var conflictEdge = null;
-            this.state.streets.edges.forEach(function(edge) {
-                var newPos = newEdge.intersects(edge);
-                if (newPos) {
-                    newNode.pos[0] = newPos[0];
-                    newNode.pos[1] = newPos[1];
-                    conflictEdge = edge;
-                }
-            });
 
-            if (conflictEdge) {
-                var temp = conflictEdge.to;
-                conflictEdge.to = newNode;
-                this.state.streets.edges.push(mapEdge(newNode, temp))
-                newNode.valence += 2;
-                newNode.pivots.push(dir);
-            } else {
-                newNode.pivots.push(dir, dir + .5 * Math.PI, dir - .5 * Math.PI);
+            var cropped = newEdge.adapt(this.state.streets.edges, dir);
+
+            if (!cropped) {
+                newNode.pos = [
+                    node.pos[0] + Math.sin(dir) * len * 1.5,
+                    node.pos[1] + Math.cos(dir) * len * 1.5
+                ];
+                var extendCropped = newEdge.adapt(this.state.streets.edges, dir);
+            }
+
+            if (cropped || extendCropped) {
+                var snapped = newEdge.snap(this.state.streets.nodes);
             }
 
             node.valence += 1;

@@ -1,6 +1,6 @@
 (function() {
-    var nodeGoal = 10000;
-    var iterCount = 10000;
+    var nodeGoal = 1000;
+    var iterCount = 30;
 
     var w = window.innerWidth;
     var h = window.innerHeight;
@@ -22,7 +22,7 @@
         var state = city.generate().state;
 
         console.log(Date.now() - start, 'ms per step', step);
-        // console.log(state.streets.nodes.length)
+        console.log(state.streets.nodes.length)
 
         drawCanvas(state.streets.edges, ctx);
 

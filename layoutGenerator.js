@@ -142,8 +142,10 @@
                 .offset(dir, len);
 
             if (!newEdge.adapt(this.state.streets.edges, dir)) {
-                newEdge.offset(dir, 1.5 * len)
+                var extendCrop = newEdge.offset(dir, 1.5 * len)
                     .adapt(this.state.streets.edges, dir);
+                if (!extendCrop)
+                    newEdge.offset(dir, len);
             }
 
             if (!this.state.streets.edges.some(newEdge.eq, newEdge)) {

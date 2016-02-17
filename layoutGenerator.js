@@ -137,7 +137,10 @@
             if (!snapped) {
                 this.state.streets.nodes.push(newNode);
             }
-            this.state.streets.edges.push(newEdge);
+            if (!snapped || snapped && !this.state.streets.edges.some(function(edge) {
+                        return edge.from === newEdge.from && edge.to === newEdge.to;
+                    }))
+                this.state.streets.edges.push(newEdge);
         }, this);
 
         return this;

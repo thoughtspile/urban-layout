@@ -30,8 +30,13 @@ function times(n, a) {
     return [n * a[0], n * a[1]];
 }
 
-function sub(a, b) {
-    return sum(a, times(-1, b));
+function sub(a, b, into) {
+    if (into) {
+        into[0] = a[0] - b[0];
+        into[1] = a[1] - b[1];
+        return into;
+    }
+    return [a[0] - b[0], a[1] - b[1]];
 }
 
 function dist (c1, c2) {

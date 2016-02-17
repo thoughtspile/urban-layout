@@ -17,7 +17,6 @@
             return new mapNode(x, y);
         this.pos = [x, y];
         this.pivots = [];
-        this.valence = 0;
         this.isActive = true;
     }
 
@@ -32,25 +31,42 @@
             return new mapEdge(node1, node2);
         this.from = node1;
         this.to = node2;
+        this.selfVec = [0, 0];
+    }
+
+    mapEdge.buffer = [0, 0];
+
+    mapEdge.prototype.offset = function(dir, len) {
+        this.to.pos[0] = this.from.pos[0] + Math.sin(dir) * len;
+        this.to.pos[1] = this.from.pos[1] + Math.cos(dir) * len;
+        this.recomputeVec();
+        return this;
     }
 
     mapEdge.prototype.intersects = function(edge2) {
         // http://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
         var p = this.from.pos;
-        var q = edge2.from.pos;
-        var r = sub(this.to.pos, p);
-        var s = sub(edge2.to.pos, q);
+        var r = this.selfVec;
+        var s = edge2.selfVec;
+        var subqp = sub(edge2.from.pos, p, mapEdge.buffer);
 
         if (cross(r, s) == 0)
             return false;
-        var u = cross(sub(q, p), r) / cross(r, s);
+        var u = cross(subqp, r) / cross(r, s);
         if (u <= 0 || u >= 1)
             return false;
-        var t = cross(sub(q, p), s) / cross(r, s);
+        var t = cross(subqp, s) / cross(r, s);
         if (t <= 0 || t >= 1)
             return false;
         return sum(p, scalar(t, r));
     }
+
+    mapEdge.prototype.crop = function(node) {
+        var temp = this.to;
+        this.to = node;
+        this.recomputeVec();
+        return mapEdge(node, temp).recomputeVec();
+    };
 
     mapEdge.prototype.adapt = function(edges, dir) {
         var newNode = this.to;
@@ -61,32 +77,43 @@
             if (newPos) {
                 newNode.pos[0] = newPos[0];
                 newNode.pos[1] = newPos[1];
+                this.recomputeVec();
                 conflictEdge = edge;
             }
         }, this);
 
         if (conflictEdge) {
-            var temp = conflictEdge.to;
-            conflictEdge.to = newNode;
-            edges.push(mapEdge(newNode, temp));
-            newNode.valence += 2;
-            newNode.pivots.push(dir);
+            if (!this.snapToEdge(conflictEdge)) {
+                edges.push(conflictEdge.crop(newNode));
+                newNode.pivots.push(dir);
+            }
         } else {
             newNode.pivots.push(dir, dir + .5 * Math.PI, dir - .5 * Math.PI);
         }
 
         return conflictEdge !== null;
-    }
+    };
 
-    mapEdge.prototype.snap = function (nodes) {
-        return nodes.some(function(node) {
-            if (dist(this.to.pos, node.pos) < .2) {
-                this.to = node;
-                node.valence++;
-                return true;
-            }
-            return false;
-        }, this);
+    mapEdge.prototype.snapToNode = function (node) {
+        if (dist(this.to.pos, node.pos) < .2) {
+            this.to = node;
+            this.recomputeVec();
+            return true;
+        }
+        return false;
+    };
+
+    mapEdge.prototype.snapToEdge = function(edge) {
+        return this.snapToNode(edge.to) || this.snapToNode(edge.from);
+    };
+
+    mapEdge.prototype.recomputeVec = function() {
+        sub(this.to.pos, this.from.pos, this.selfVec);
+        return this;
+    };
+
+    mapEdge.prototype.eq = function(edge) {
+        return edge.from === this.from && edge.to === this.to;
     };
 
 
@@ -106,41 +133,26 @@
 
     layoutGenerator.prototype.generate = function(t) {
         this.state.streets.nodes.filter(function(node) {
-            return node.isActive;
+            return node.pivots.length > 0;
         }).forEach(function(node, i, a) {
             var dir = node.pivot() + prng(-this.state.spread, this.state.spread);
             var len = prng(0, 1);
 
-            var newNode = mapNode(
-                node.pos[0] + Math.sin(dir) * len,
-                node.pos[1] + Math.cos(dir) * len);
-            newNode.valence = 1;
-            var newEdge = mapEdge(node, newNode);
+            var newEdge = mapEdge(node, mapNode(0, 0))
+                .offset(dir, len);
 
-            var cropped = newEdge.adapt(this.state.streets.edges, dir);
-
-            if (!cropped) {
-                newNode.pos = [
-                    node.pos[0] + Math.sin(dir) * len * 1.5,
-                    node.pos[1] + Math.cos(dir) * len * 1.5
-                ];
-                var extendCropped = newEdge.adapt(this.state.streets.edges, dir);
+            if (!newEdge.adapt(this.state.streets.edges, dir)) {
+                newEdge.offset(dir, 1.5 * len)
+                    .adapt(this.state.streets.edges, dir);
             }
 
-            if (cropped || extendCropped) {
-                var snapped = newEdge.snap(this.state.streets.nodes);
-            }
-
-            node.valence += 1;
-            if (node.valence > 3)
-                node.isActive = false;
-            if (!snapped) {
-                this.state.streets.nodes.push(newNode);
-            }
-            if (!snapped || snapped && !this.state.streets.edges.some(function(edge) {
-                        return edge.from === newEdge.from && edge.to === newEdge.to;
-                    }))
+            if (!this.state.streets.edges.some(newEdge.eq, newEdge)) {
                 this.state.streets.edges.push(newEdge);
+
+                var resNode = newEdge.to;
+                if (this.state.streets.nodes.indexOf(resNode) === -1)
+                    this.state.streets.nodes.push(resNode);
+            }
         }, this);
 
         return this;

@@ -40,6 +40,21 @@
         edge[invert? 'to': 'from'].halfEdges.push(this);
     };
 
+    mapHalfEdge.prototype.next = function() {
+        var dir = this.dir;
+        return this.target.halfEdges.reduce(function(best, halfEdge) {
+            if (halfEdge.free == false)
+                return best;
+            var rot = halfEdge.dir - dir;
+            if (rot < 0) rot += Math.PI * 2;
+            if (rot < best.score) {
+                best.halfEdge = halfEdge;
+                best.score = rot;
+            }
+            return best;
+        }, { score: Infinity}).halfEdge;
+    };
+
 
     function mapEdge(node1, node2) {
         if (!(this instanceof mapEdge))
@@ -178,22 +193,11 @@
 
     layoutGenerator.prototype.cycleFromHalfEdge = function(halfEdge0) {
         var depth = 0;
-        var dir = null;
         var halfEdge = halfEdge0;
         var path = [halfEdge0];
+
         while (depth < 100) {
-            dir = halfEdge.dir;
-            halfEdge = halfEdge.target.halfEdges.reduce(function(best, halfEdge) {
-                if (halfEdge.free == false)
-                    return best;
-                var rot = halfEdge.dir - dir;
-                if (rot < 0) rot += Math.PI * 2;
-                if (rot < best.score) {
-                    best.halfEdge = halfEdge;
-                    best.score = rot;
-                }
-                return best;
-            }, { score: Infinity}).halfEdge;
+            halfEdge = halfEdge.next();
 
             if (!halfEdge || halfEdge === path[path.length - 1].twin)
                 return false;

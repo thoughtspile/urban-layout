@@ -33,6 +33,20 @@
         this.from = node1;
         this.to = node2;
         this.selfVec = [0, 0];
+
+        this.recomputeVec();
+        var dir = this.getDir();
+
+        var halfEdgeForw = { free: true, source: this.from, target: this.to, dir: dir };
+        var halfEdgeBack = { free: true, source: this.to, target: this.from, dir: (dir + Math.PI) % (2 * Math.PI) };
+        halfEdgeForw.twin = halfEdgeBack;
+        halfEdgeBack.twin = halfEdgeForw;
+
+        this.forw = halfEdgeForw;
+        this.back = halfEdgeBack;
+
+        this.from.halfEdges.push(halfEdgeForw);
+        this.to.halfEdges.push(halfEdgeBack);
     }
 
     mapEdge.buffer = [0, 0];
@@ -69,7 +83,7 @@
         return mapEdge(node, temp).recomputeVec();
     };
 
-    mapEdge.prototype.adapt = function(edges, dir, edgePush) {
+    mapEdge.prototype.adapt = function(edges, dir, edgePush, r) {
         var newNode = this.to;
 
         var conflictEdge = null;
@@ -84,7 +98,7 @@
         }, this);
 
         if (conflictEdge) {
-            if (!this.snapToEdge(conflictEdge)) {
+            if (!this.snapToEdge(conflictEdge, r)) {
                 edgePush(conflictEdge.crop(newNode));
                 newNode.pivots.push(dir);
             }
@@ -95,8 +109,8 @@
         return conflictEdge !== null;
     };
 
-    mapEdge.prototype.snapToNode = function (node) {
-        if (dist(this.to.pos, node.pos) < .2) {
+    mapEdge.prototype.snapToNode = function (node, r) {
+        if (dist(this.to.pos, node.pos) < r) {
             this.to = node;
             this.recomputeVec();
             return true;
@@ -104,8 +118,9 @@
         return false;
     };
 
-    mapEdge.prototype.snapToEdge = function(edge) {
-        return this.snapToNode(edge.to) || this.snapToNode(edge.from);
+    mapEdge.prototype.snapToEdge = function(edge, r) {
+        return this.snapToNode(edge.to, r)
+            || this.snapToNode(edge.from, r);
     };
 
     mapEdge.prototype.recomputeVec = function() {
@@ -135,36 +150,37 @@
                 edges: []
             },
             districts: [],
-            spread: .3
+
+            spread: .2,
+            snapR: .1,
+            short: .5,
+            long: 1
         };
+    };
+
+    layoutGenerator.prototype.removeCycle = function (border) {
+        border.forEach(function (halfEdge) {
+            halfEdge.free = false;
+        });
     };
 
     layoutGenerator.prototype.addEdge = function(edge) {
         this.state.streets.edges.push(edge);
-        var dir = edge.getDir();
-
-        edge.from.halfEdges.push({
-            target: edge.to,
-            dir: dir
-        });
-        edge.to.halfEdges.push({
-            target: edge.from,
-            dir: -dir
-        });
-
         return this;
     }
 
-    layoutGenerator.prototype.cycleFrom = function(edge) {
-        var node = edge.to;
-        var dir = edge.getDir();
+    layoutGenerator.prototype.cycleFromHalfEdge = function(halfEdge0) {
         var depth = 0;
-        var path = [node];
+        var dir = halfEdge0.dir;
+        var node = halfEdge0.target;
+        var path = [halfEdge0];
         while (depth < 100) {
             if (node.halfEdges.length == 0)
                 return false;
 
             var halfEdge = node.halfEdges.reduce(function(best, halfEdge) {
+                if (halfEdge.free == false)
+                    return best;
                 var rot = halfEdge.dir - dir;
                 if (rot < 0) rot += Math.PI * 2;
                 if (rot < best.score) {
@@ -174,15 +190,17 @@
                 return best;
             }, { score: Infinity}).halfEdge;
 
+            if (!halfEdge)
+                return false;
+
             node = halfEdge.target;
             dir = halfEdge.dir;
 
-            path.push(node);
-            if (node === edge.to) {
+            path.push(halfEdge);
+            if (halfEdge === halfEdge0) {
                 if (path.length > 2) {
-                    // console.log('success', path);
-                    this.state.districts.push(path);
-                    // TODO remove half-edges
+                    this.removeCycle(path);
+                    this.state.districts.push(path.map(halfEdge => halfEdge.target));
                     return true;
                 } else {
                     return false;
@@ -193,21 +211,27 @@
         return false;
     };
 
+    layoutGenerator.prototype.cycleFrom = function(edge) {
+        this.cycleFromHalfEdge(edge.forw);
+        this.cycleFromHalfEdge(edge.back);
+        console.log(this.state.districts.length);
+    };
+
     layoutGenerator.prototype.generate = function(t) {
         this.state.streets.nodes.filter(function(node) {
             return node.pivots.length > 0;
         }).forEach(function(node, i, a) {
             var dir = node.pivot() + prng(-this.state.spread, this.state.spread);
-            var len = prng(0, 1);
+            var len = prng(this.state.short, this.state.long);
 
             var newEdge = mapEdge(node, mapNode(0, 0))
                 .offset(dir, len);
 
-            var cropDown = newEdge.adapt(this.state.streets.edges, dir, this.addEdge.bind(this));
+            var cropDown = newEdge.adapt(this.state.streets.edges, dir, this.addEdge.bind(this), this.state.snapR);
             var cropUp = false;
             if (!cropDown) {
                 cropUp = newEdge.offset(dir, 1.5 * len)
-                    .adapt(this.state.streets.edges, dir, this.addEdge.bind(this));
+                    .adapt(this.state.streets.edges, dir, this.addEdge.bind(this), this.state.snapR);
                 if (!cropUp)
                     newEdge.offset(dir, len);
             }
@@ -227,6 +251,7 @@
 
         return this;
     };
+
 
     window.randi = randi;
     window.layoutGenerator = layoutGenerator;

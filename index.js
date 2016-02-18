@@ -21,6 +21,12 @@
         var start = Date.now();
         var state = city.generate().state;
 
+        var rangeX = d3.extent(state.streets.nodes.map(node => node.pos[0]));
+        var rangeY = d3.extent(state.streets.nodes.map(node => node.pos[0]));
+        var rangeU = d3.extent(rangeX.concat(rangeY));
+        sx.domain(rangeU);
+        sy.domain(rangeU);
+
         console.log(Date.now() - start, 'ms per step', step);
         console.log(state.streets.nodes.length)
 

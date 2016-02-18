@@ -32,27 +32,31 @@
             return new mapHalfEdge(edge, invert);
 
         this.free = true;
+        this.invert = Boolean(invert);
         this.source = invert? edge.to: edge.from;
         this.target = invert? edge.from: edge.to;
-        this.dir = edge.getDir() + (invert? Math.PI: 0);
+        this.dir = (!invert)? edge.getDir(): (edge.getDir() + Math.PI) % (2 * Math.PI);
 
         edge[invert? 'back': 'forw'] = this;
-        edge[invert? 'to': 'from'].halfEdges.push(this);
-    };
+        this.source.halfEdges.push(this);
+    }
 
     mapHalfEdge.prototype.next = function() {
-        var dir = this.dir;
-        return this.target.halfEdges.reduce(function(best, halfEdge) {
-            if (halfEdge.free == false)
+        var twin = this.twin;
+        var dir = this.twin.dir;
+        var bestMatch = this.target.halfEdges.reduce(function(best, halfEdge) {
+            if (halfEdge.free == false || halfEdge === twin)
                 return best;
             var rot = halfEdge.dir - dir;
-            if (rot < 0) rot += Math.PI * 2;
+            while (rot < 0) rot += Math.PI * 2; // FIXME why all the wild variation in angles?
             if (rot < best.score) {
                 best.halfEdge = halfEdge;
                 best.score = rot;
             }
             return best;
-        }, { score: Infinity}).halfEdge;
+        }, { score: Infinity})
+        // console.log(bestMatch.score)
+        return bestMatch.halfEdge;
     };
 
 
@@ -101,9 +105,23 @@
     mapEdge.prototype.crop = function(node) {
         var temp = this.to;
         this.to = node;
+
+        // update half-edges
+        this.forw.target = node;
+        sourceHalfEdge(this.back, node);
+
+        // console.log('cropped');
+
         this.recomputeVec();
         return mapEdge(node, temp).recomputeVec();
     };
+
+    function sourceHalfEdge(halfEdge, into) {
+        var old = halfEdge.source;
+        old.halfEdges.splice(old.halfEdges.indexOf(halfEdge), 1);
+        halfEdge.source = into;
+        into.halfEdges.push(halfEdge);
+    }
 
     mapEdge.prototype.adapt = function(edges, dir, edgePush, r) {
         var newNode = this.to;
@@ -135,6 +153,16 @@
         if (dist(this.to.pos, node.pos) < r) {
             this.to = node;
             this.recomputeVec();
+
+            // update half-edges
+            var dir = this.getDir();
+            this.forw.target = node;
+            this.forw.dir = dir;
+            sourceHalfEdge(this.back, node);
+            this.back.dir = (dir + Math.PI) % (2 * Math.PI);
+
+            // console.log('snapped')
+
             return true;
         }
         return false;
@@ -147,6 +175,11 @@
 
     mapEdge.prototype.recomputeVec = function() {
         sub(this.to.pos, this.from.pos, this.selfVec);
+        var dir = this.getDir();
+        if (this.forw)
+            this.forw.dir = dir
+        if (this.back)
+            this.back.dir = (dir + Math.PI) % (2 * Math.PI);
         return this;
     };
 
@@ -255,6 +288,5 @@
     };
 
 
-    window.randi = randi;
     window.layoutGenerator = layoutGenerator;
 }());

@@ -1,5 +1,5 @@
 (function() {
-    var nodeGoal = 1000;
+    var nodeGoal = 2000;
     var iterCount = 30;
 
     var w = window.innerWidth;
@@ -49,9 +49,9 @@
     }
 
     function drawCanvasDistr(dists, ctx, nodes) {
-        var debug = [];
+        // var debug = [];
         dists.forEach(function(bord) {
-            debug.push(bord.map(n => nodes.indexOf(n)).join(' '))
+            // debug.push(bord.map(n => nodes.indexOf(n)).join(' '))
             ctx.fillStyle = 'rgba(100,200,0,.8)';
 
             ctx.beginPath();
@@ -65,7 +65,7 @@
         ctx.fillStyle = '#fff';
 
         console.log(dists.length, 'districts');
-        console.log(debug.sort().join('\n'));
+        // console.log(debug.sort().join('\n'));
     }
 
     function drawSVG(streets, map) {

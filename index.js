@@ -27,18 +27,19 @@
         sx.domain(rangeU);
         sy.domain(rangeU);
 
+        console.log();
         console.log(Date.now() - start, 'ms per step', step);
-        console.log(state.streets.nodes.length)
 
         ctx.clearRect(0, 0, w, h);
         drawCanvas(state.streets.edges, ctx);
-        drawCanvasDistr(state.districts, ctx);
+        drawCanvasDistr(state.districts, ctx, state.streets.nodes);
 
         if (state.streets.nodes.length < nodeGoal && step++ < iterCount)
             window.requestAnimationFrame(animate);
     }());
 
     function drawCanvas(streets, ctx) {
+        console.log(streets.length, 'streets');
         streets.forEach(function(edge) {
             ctx.beginPath();
             ctx.moveTo(sx(edge.from.pos[0]), sy(edge.from.pos[1]));
@@ -47,10 +48,12 @@
         });
     }
 
-    function drawCanvasDistr(dists, ctx) {
+    function drawCanvasDistr(dists, ctx, nodes) {
+        var debug = [];
         dists.forEach(function(bord) {
-            ctx.fillStyle = 'rgba(' +randi(0, 255) + ',' + randi(0,255) + ',0, .4)';
-            // console.log('DRAW', bord.length)
+            debug.push(bord.map(n => nodes.indexOf(n)).join(' '))
+            ctx.fillStyle = 'rgba(100,200,0,.8)';
+
             ctx.beginPath();
             ctx.moveTo(sx(bord[0].pos[0]), sy(bord[0].pos[1]));
             bord.slice(1).forEach(function(node) {
@@ -60,6 +63,9 @@
             ctx.fill();
         });
         ctx.fillStyle = '#fff';
+
+        console.log(dists.length, 'districts');
+        console.log(debug.sort().join('\n'));
     }
 
     function drawSVG(streets, map) {

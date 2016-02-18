@@ -27,6 +27,20 @@
     };
 
 
+    function mapHalfEdge(edge, invert) {
+        if (!(this instanceof mapHalfEdge))
+            return new mapHalfEdge(edge, invert);
+
+        this.free = true;
+        this.source = invert? edge.to: edge.from;
+        this.target = invert? edge.from: edge.to;
+        this.dir = edge.getDir() + (invert? Math.PI: 0);
+
+        edge[invert? 'back': 'forw'] = this;
+        edge[invert? 'to': 'from'].halfEdges.push(this);
+    };
+
+
     function mapEdge(node1, node2) {
         if (!(this instanceof mapEdge))
             return new mapEdge(node1, node2);
@@ -35,18 +49,11 @@
         this.selfVec = [0, 0];
 
         this.recomputeVec();
-        var dir = this.getDir();
 
-        var halfEdgeForw = { free: true, source: this.from, target: this.to, dir: dir };
-        var halfEdgeBack = { free: true, source: this.to, target: this.from, dir: (dir + Math.PI) % (2 * Math.PI) };
+        var halfEdgeForw = mapHalfEdge(this);
+        var halfEdgeBack = mapHalfEdge(this, true);
         halfEdgeForw.twin = halfEdgeBack;
         halfEdgeBack.twin = halfEdgeForw;
-
-        this.forw = halfEdgeForw;
-        this.back = halfEdgeBack;
-
-        this.from.halfEdges.push(halfEdgeForw);
-        this.to.halfEdges.push(halfEdgeBack);
     }
 
     mapEdge.buffer = [0, 0];
@@ -171,14 +178,12 @@
 
     layoutGenerator.prototype.cycleFromHalfEdge = function(halfEdge0) {
         var depth = 0;
-        var dir = halfEdge0.dir;
-        var node = halfEdge0.target;
+        var dir = null;
+        var halfEdge = halfEdge0;
         var path = [halfEdge0];
         while (depth < 100) {
-            if (node.halfEdges.length == 0)
-                return false;
-
-            var halfEdge = node.halfEdges.reduce(function(best, halfEdge) {
+            dir = halfEdge.dir;
+            halfEdge = halfEdge.target.halfEdges.reduce(function(best, halfEdge) {
                 if (halfEdge.free == false)
                     return best;
                 var rot = halfEdge.dir - dir;
@@ -190,22 +195,16 @@
                 return best;
             }, { score: Infinity}).halfEdge;
 
-            if (!halfEdge)
+            if (!halfEdge || halfEdge === path[path.length - 1].twin)
                 return false;
 
-            node = halfEdge.target;
-            dir = halfEdge.dir;
+            if (halfEdge === halfEdge0) {
+                this.removeCycle(path);
+                this.state.districts.push(path.map(halfEdge => halfEdge.target));
+                return true;
+            }
 
             path.push(halfEdge);
-            if (halfEdge === halfEdge0) {
-                if (path.length > 2) {
-                    this.removeCycle(path);
-                    this.state.districts.push(path.map(halfEdge => halfEdge.target));
-                    return true;
-                } else {
-                    return false;
-                }
-            }
             depth++;
         }
         return false;
@@ -214,7 +213,6 @@
     layoutGenerator.prototype.cycleFrom = function(edge) {
         this.cycleFromHalfEdge(edge.forw);
         this.cycleFromHalfEdge(edge.back);
-        console.log(this.state.districts.length);
     };
 
     layoutGenerator.prototype.generate = function(t) {

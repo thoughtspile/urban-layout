@@ -43,7 +43,7 @@ function dist (c1, c2) {
     return Math.sqrt(Math.pow(c1[0] - c2[0], 2) + Math.pow(c1[1] - c2[1], 2))
 };
 
-module.exports = {
+var vec = {
     norm: norm,
     dot: dot,
     cross: cross,
@@ -53,3 +53,5 @@ module.exports = {
     sub: sub,
     dist: dist
 };
+
+module.exports = vec;

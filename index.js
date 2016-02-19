@@ -1,4 +1,6 @@
 (function() {
+    var layoutGenerator = require('./layoutGenerator.js');
+
     var nodeGoal = 2000;
     var iterCount = 30;
 
@@ -42,6 +44,12 @@
         console.log(streets.length, 'streets');
         streets.forEach(function(edge) {
             ctx.beginPath();
+            if (edge.forw.free && edge.back.free)
+                ctx.strokeStyle = 'black';
+            else if (edge.forw.free || edge.back.free)
+                ctx.strokeStyle = 'green';
+            else
+                ctx.strokeStyle = 'red';
             ctx.moveTo(sx(edge.from.pos[0]), sy(edge.from.pos[1]));
             ctx.lineTo(sx(edge.to.pos[0]), sy(edge.to.pos[1]));
             ctx.stroke();
@@ -52,7 +60,7 @@
         // var debug = [];
         dists.forEach(function(bord) {
             // debug.push(bord.map(n => nodes.indexOf(n)).join(' '))
-            ctx.fillStyle = 'rgba(100,200,0,.8)';
+            ctx.fillStyle = 'rgba(' + randi(0, 255) + ',' + randi(0, 255) + ',0,.8)';
 
             ctx.beginPath();
             ctx.moveTo(sx(bord[0].pos[0]), sy(bord[0].pos[1]));

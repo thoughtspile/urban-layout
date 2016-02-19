@@ -42,3 +42,14 @@ function sub(a, b, into) {
 function dist (c1, c2) {
     return Math.sqrt(Math.pow(c1[0] - c2[0], 2) + Math.pow(c1[1] - c2[1], 2))
 };
+
+module.exports = {
+    norm: norm,
+    dot: dot,
+    cross: cross,
+    rescale: rescale,
+    scalar: scalar,
+    sum: sum,
+    sub: sub,
+    dist: dist
+};

@@ -1,4 +1,9 @@
 (function() {
+    var vec = require('./vec.js');
+    var mapNode = require('./mapNode.js');
+
+    var swapArr2 = [0, 0];
+
     function aff(val, min, max) {
         return min + val * (max - min);
     }
@@ -10,21 +15,6 @@
     function randi(min, max) {
         return Math.floor(aff(Math.random(), min, max));
     }
-
-
-    function mapNode(x, y) {
-        if (!(this instanceof mapNode))
-            return new mapNode(x, y);
-        this.pos = [x, y];
-        this.pivots = [];
-        this.halfEdges = [];
-        this.isActive = true;
-    }
-
-    mapNode.prototype.pivot = function () {
-        var pivotI = randi(this.pivots.length);
-        return this.pivots.splice(pivotI, 1)[0];
-    };
 
 
     function mapHalfEdge(edge, invert) {
@@ -59,6 +49,14 @@
         return bestMatch.halfEdge;
     };
 
+    mapHalfEdge.prototype.setSource = function (into) {
+        var old = this.source;
+        old.halfEdges.splice(old.halfEdges.indexOf(this), 1);
+        this.source = into;
+        into.halfEdges.push(this);
+        return this;
+    };
+
 
     function mapEdge(node1, node2) {
         if (!(this instanceof mapEdge))
@@ -67,15 +65,13 @@
         this.to = node2;
         this.selfVec = [0, 0];
 
-        this.recomputeVec();
-
         var halfEdgeForw = mapHalfEdge(this);
         var halfEdgeBack = mapHalfEdge(this, true);
         halfEdgeForw.twin = halfEdgeBack;
         halfEdgeBack.twin = halfEdgeForw;
-    }
 
-    mapEdge.buffer = [0, 0];
+        this.recomputeVec();
+    }
 
     mapEdge.prototype.offset = function(dir, len) {
         this.to.pos[0] = this.from.pos[0] + Math.sin(dir) * len;
@@ -89,17 +85,18 @@
         var p = this.from.pos;
         var r = this.selfVec;
         var s = edge2.selfVec;
-        var subqp = sub(edge2.from.pos, p, mapEdge.buffer);
+        var subqp = vec.sub(edge2.from.pos, p, swapArr2);
+        var crossrs = vec.cross(r, s);
 
-        if (cross(r, s) == 0)
+        if (crossrs == 0)
             return false;
-        var u = cross(subqp, r) / cross(r, s);
+        var u = vec.cross(subqp, r) / crossrs;
         if (u <= 0 || u >= 1)
             return false;
-        var t = cross(subqp, s) / cross(r, s);
+        var t = vec.cross(subqp, s) / crossrs;
         if (t <= 0 || t >= 1)
             return false;
-        return sum(p, scalar(t, r));
+        return vec.sum(p, vec.scalar(t, r));
     }
 
     mapEdge.prototype.crop = function(node) {
@@ -108,20 +105,16 @@
 
         // update half-edges
         this.forw.target = node;
-        sourceHalfEdge(this.back, node);
-
-        // console.log('cropped');
+        this.back.setSource(node);
 
         this.recomputeVec();
-        return mapEdge(node, temp).recomputeVec();
-    };
 
-    function sourceHalfEdge(halfEdge, into) {
-        var old = halfEdge.source;
-        old.halfEdges.splice(old.halfEdges.indexOf(halfEdge), 1);
-        halfEdge.source = into;
-        into.halfEdges.push(halfEdge);
-    }
+        var rest = mapEdge(node, temp); // WATCH used to have recomuteVec
+        // rest.forw.free = this.forw.free;
+        // rest.back.free = this.back.free;
+
+        return rest;
+    };
 
     mapEdge.prototype.adapt = function(edges, dir, edgePush, r) {
         var newNode = this.to;
@@ -150,7 +143,7 @@
     };
 
     mapEdge.prototype.snapToNode = function (node, r) {
-        if (dist(this.to.pos, node.pos) < r) {
+        if (vec.dist(this.to.pos, node.pos) < r) {
             this.to = node;
             this.recomputeVec();
 
@@ -158,10 +151,8 @@
             var dir = this.getDir();
             this.forw.target = node;
             this.forw.dir = dir;
-            sourceHalfEdge(this.back, node);
+            this.back.setSource(node);
             this.back.dir = (dir + Math.PI) % (2 * Math.PI);
-
-            // console.log('snapped')
 
             return true;
         }
@@ -169,23 +160,20 @@
     };
 
     mapEdge.prototype.snapToEdge = function(edge, r) {
-        return this.snapToNode(edge.to, r)
-            || this.snapToNode(edge.from, r);
+        return this.snapToNode(edge.to, r) || this.snapToNode(edge.from, r);
     };
 
     mapEdge.prototype.recomputeVec = function() {
-        sub(this.to.pos, this.from.pos, this.selfVec);
+        vec.sub(this.to.pos, this.from.pos, this.selfVec);
         var dir = this.getDir();
-        if (this.forw)
-            this.forw.dir = dir
-        if (this.back)
-            this.back.dir = (dir + Math.PI) % (2 * Math.PI);
+        if (this.forw) this.forw.dir = dir
+        if (this.back) this.back.dir = (dir + Math.PI) % (2 * Math.PI);
         return this;
     };
 
     mapEdge.prototype.getDir = function() {
-        var temp = (this.selfVec[1] > 0? 1: -1) * Math.acos(this.selfVec[0] / norm(this.selfVec));
-        // FIXME edge should not be 0
+        var temp = (this.selfVec[1] > 0? 1: -1) * Math.acos(this.selfVec[0] / vec.norm(this.selfVec));
+        // FIXME why is edge length 0?
         return isNaN(temp)? 0: temp;
     };
 
@@ -206,8 +194,8 @@
             },
             districts: [],
 
-            spread: .2,
-            snapR: .1,
+            spread: .3,
+            snapR: .4,
             short: .5,
             long: 1
         };
@@ -288,5 +276,6 @@
     };
 
 
-    window.layoutGenerator = layoutGenerator;
+    window.randi = randi;
+    module.exports = layoutGenerator;
 }());

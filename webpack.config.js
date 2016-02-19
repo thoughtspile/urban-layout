@@ -8,15 +8,15 @@ module.exports = {
     },
     devtool: 'source-map',
     module: {
-        // loaders: [
-        //     {
-        //         test: /\.js$/,
-        //         loader: 'babel-loader',
-        //         include: path.resolve(__dirname, 'src'),
-        //         query: {
-        //             presets: ['es2015']
-        //         }
-        //     }
-        // ]
+        loaders: [
+            {
+                test: /\.js$/,
+                loader: 'babel-loader',
+                include: path.resolve(__dirname, 'src'),
+                query: {
+                    presets: ['es2015']
+                }
+            }
+        ]
     }
 };
